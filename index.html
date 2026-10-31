@@ -112,6 +112,9 @@ kbd { font: 700 12px var(--body); color: var(--text); }
   .stage { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(440px, auto); grid-template-areas: "lion" "hw"; height: auto; }
   .lion { aspect-ratio: 16 / 9; }
   .brief { border-left: 0; border-top: 1px solid var(--line); padding-block: 18px; }
+  .stage.playing .lion .tag { padding: 16px 10px 6px; }
+  .stage.playing .lion .act { font-size: 12px; }
+  .stage.playing .lion .src { display: none; }
   .brief .inner { gap: 12px; }
   .head .han { font-size: 48px; }
   .head h2 { font-size: 24px; }
@@ -182,7 +185,12 @@ kbd { font: 700 12px var(--body); color: var(--text); }
 .sources { font-size: 13px; color: var(--muted); display: grid; gap: 6px; }
 .sources p { margin: 0; }
 .sources ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
-@media (max-width: 520px) { .mark { font-size: 48px; } header h1 { font-size: 26px; } }
+@media (max-width: 520px) {
+  header { flex-wrap: nowrap; align-items: center; gap: 12px; }
+  header p { display: none; }
+  .mark { font-size: 40px; }
+  header h1 { font-size: 24px; }
+}
 </style>
 
 <main class="wrap">
@@ -396,6 +404,7 @@ const clock = () => ac.currentTime - LAT;
 function startStage() {
   unlockAudio(); // the Play tap: iOS may have suspended audio since the last act
   hideBrief();
+  $('.stage').classList.add('playing');
   if (matchMedia('(max-width: 639px)').matches) $('.stage').scrollIntoView({ block: 'start', behavior: REDUCE_MOTION ? 'auto' : 'smooth' });
   const st = STAGES[G.stage], [a, b] = SEGS[G.stage];
   const t0 = ac.currentTime + Math.max(st.travel, 3 * COUNT_IN) + 0.4;
@@ -423,6 +432,7 @@ function finishStage() {
   s.acc = total ? (s.perfect + 0.5 * s.good) / total : 0;
   G.results.push(s);
   vid.pause(); vid.playbackRate = 1;
+  $('.stage').classList.remove('playing');
   G.stage++; G.phase = 'card'; G.track = null;
   if (G.stage < STAGES.length) stageBrief(); else finalBrief();
 }
@@ -488,10 +498,11 @@ function chips(i) {
 
 function introBrief() {
   showBrief(`<div class="eyebrow">Singapore heritage · lion dance</div>
-    <div class="head"><span class="han">醒狮</span><h2>Awaken the Lion</h2></div>
     <p>Lion dance troupes bring good luck at Chinese New Year, festivals and shop openings across Singapore. You join the band.</p>
     <p class="muted">Every note is a real beat from the band playing for the lions beside you. Three acts of 45 seconds. Turn your sound on.</p>
-    <div class="keys"><span><kbd>D</kbd> drum</span><span><kbd>F</kbd> cymbal</span><span><kbd>J</kbd> gong</span><span>or tap the circles</span></div>
+    ${FINE_POINTER
+      ? '<div class="keys"><span><kbd>D</kbd> drum</span><span><kbd>F</kbd> cymbal</span><span><kbd>J</kbd> gong</span><span>or click the circles</span></div>'
+      : '<p class="muted">Tap the circles as the notes reach them, one thumb per side.</p>'}
     <div class="actions"><button class="btn" id="go">Start the performance</button></div>
     <p class="err" id="err" hidden></p>`);
   $('#go').onclick = async () => {
