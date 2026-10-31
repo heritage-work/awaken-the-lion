@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gloock&family=Figtree:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&text=醒狮点睛采青鼓钹锣新手徒弟师兄傅公&display=swap">
 <style>
-/* Layout: one lacquered stage. Left: the real lions (16:9 video in play, the act's Singapore photo between acts). Right: the note highway in play, the act briefing between acts. Pads, quiz and field guide below. Deliberately single dark theme: a night street performance. */
+/* Layout: one lacquered stage. Left: the real lions (16:9 video in play, the act's Singapore photo between acts). Right: the note highway in play (its circles are the buttons), the act briefing between acts. Quiz and field guide below. Deliberately single dark theme: a night street performance. */
 :root {
   --ink: #1c0a09;
   --panel: #2b110f;
@@ -54,7 +54,9 @@ header p { margin: 4px 0 0; color: var(--muted); max-width: 60ch; }
 }
 .lion .act { font-size: 14px; font-weight: 600; }
 .lion .src { font-size: 11px; color: var(--muted); }
-#game { grid-area: hw; display: block; width: 100%; height: 100%; min-width: 0; touch-action: none; -webkit-user-select: none; user-select: none; }
+/* Absolutely placed in its grid area, so the canvas never sizes its row. In normal flow its pixel buffer
+   (3x on iPhones) grew the auto-sized row on every resize until the briefing was thousands of pixels tall. */
+#game { grid-area: hw; position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; -webkit-user-select: none; user-select: none; }
 .hud {
   position: absolute; top: 10px; right: 12px; display: flex; gap: 14px; z-index: 3;
   font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); pointer-events: none;
@@ -100,21 +102,14 @@ header p { margin: 4px 0 0; color: var(--muted); max-width: 60ch; }
 .btn:hover { filter: brightness(1.08); }
 .btn:disabled { opacity: .6; cursor: wait; }
 .btn.ghost { background: transparent; color: var(--text); border-color: var(--line); }
-.btn:focus-visible, .pad:focus-visible, .opt:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.btn:focus-visible, .opt:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .err { color: var(--red); font-size: 14px; }
 .keys { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
 .keys span { border: 1px solid var(--line); border-radius: 3px; padding: 2px 8px; }
 kbd { font: 700 12px var(--body); color: var(--text); }
 
 @media (max-width: 639px) {
-  .stage { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(340px, auto); grid-template-areas: "lion" "hw"; height: auto; }
-  #game { min-height: 340px; }
-  /* Keep the pads under the thumbs while the note track is on screen. */
-  .pads {
-    position: sticky; bottom: 0; z-index: 5; background: var(--ink);
-    padding-top: 8px; padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
-  }
-  .pad { min-height: 76px; }
+  .stage { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(440px, auto); grid-template-areas: "lion" "hw"; height: auto; }
   .lion { aspect-ratio: 16 / 9; }
   .brief { border-left: 0; border-top: 1px solid var(--line); padding-block: 18px; }
   .brief .inner { gap: 12px; }
@@ -161,17 +156,6 @@ kbd { font: 700 12px var(--body); color: var(--text); }
 .ladder li.you .han { color: var(--text); }
 .ladder em { font-style: normal; font-variant-numeric: tabular-nums; opacity: .8; }
 
-/* ---- pads ---- */
-.pads { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.pad {
-  font: 600 14px var(--body); color: var(--text); background: var(--panel);
-  border: 1px solid var(--line); border-bottom: 3px solid var(--c); border-radius: 4px;
-  padding: 10px 6px; display: grid; justify-items: center; gap: 2px; cursor: pointer;
-  user-select: none; -webkit-user-select: none; touch-action: manipulation;
-}
-.pad .h { font-family: var(--han); font-size: 30px; line-height: 1; color: var(--c); }
-.pad small { color: var(--muted); font-weight: 400; }
-.pad.on { background: color-mix(in srgb, var(--c) 22%, var(--panel)); }
 
 /* ---- quiz ---- */
 .section-title { margin: 8px 0 0; font-family: var(--display); font-weight: 400; font-size: 26px; }
@@ -226,11 +210,6 @@ kbd { font: 700 12px var(--body); color: var(--text); }
     <div id="result-body"></div>
   </dialog>
 
-  <div class="pads" role="group" aria-label="Instruments">
-    <button class="pad" data-lane="0" style="--c: var(--red)"><span class="h">鼓</span>Drum<small><kbd>D</kbd> or ←</small></button>
-    <button class="pad" data-lane="1" style="--c: var(--gold)"><span class="h">钹</span>Cymbal<small><kbd>F</kbd> or ↓</small></button>
-    <button class="pad" data-lane="2" style="--c: var(--jade)"><span class="h">锣</span>Gong<small><kbd>J</kbd> or →</small></button>
-  </div>
 
   <section id="quiz">
     <h2 class="section-title">Test yourself</h2>
@@ -289,11 +268,12 @@ const PERFECT = 0.07, GOOD = 0.14;
 const REDUCE_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const MEDIA = 'lion-media/';
 const COUNT_IN = 0.5;
+const FINE_POINTER = matchMedia('(pointer: fine)').matches;
 
 const LANES = [
-  { han: '鼓', name: 'Drum', col: COL.red, codes: ['KeyD', 'ArrowLeft'] },
-  { han: '钹', name: 'Cymbal', col: COL.gold, codes: ['KeyF', 'ArrowDown'] },
-  { han: '锣', name: 'Gong', col: COL.jade, codes: ['KeyJ', 'ArrowRight'] },
+  { han: '鼓', name: 'Drum', key: 'D', col: COL.red, codes: ['KeyD', 'ArrowLeft'] },
+  { han: '钹', name: 'Cymbal', key: 'F', col: COL.gold, codes: ['KeyF', 'ArrowDown'] },
+  { han: '锣', name: 'Gong', key: 'J', col: COL.jade, codes: ['KeyJ', 'ArrowRight'] },
 ];
 
 // Each act plays its own 45-second section of the performance (cut from 1:27, 4:22 and 12:00 of the original).
@@ -499,7 +479,7 @@ function introBrief() {
     <div class="head"><span class="han">醒狮</span><h2>Awaken the Lion</h2></div>
     <p>Lion dance troupes bring good luck at Chinese New Year, festivals and shop openings across Singapore. You join the band.</p>
     <p class="muted">Every note is a real beat from the band playing for the lions beside you. Three acts of 45 seconds. Turn your sound on.</p>
-    <div class="keys"><span><kbd>D</kbd> drum</span><span><kbd>F</kbd> cymbal</span><span><kbd>J</kbd> gong</span><span>or tap the lanes or pads</span></div>
+    <div class="keys"><span><kbd>D</kbd> drum</span><span><kbd>F</kbd> cymbal</span><span><kbd>J</kbd> gong</span><span>or tap the circles</span></div>
     <div class="actions"><button class="btn" id="go">Start the performance</button></div>
     <p class="err" id="err" hidden></p>`);
   $('#go').onclick = async () => {
@@ -612,10 +592,7 @@ addEventListener('keydown', e => {
   if (e.code.startsWith('Arrow')) e.preventDefault();
   hit(l);
 });
-document.querySelectorAll('.pad').forEach(b => {
-  b.addEventListener('pointerdown', e => { e.preventDefault(); hit(+b.dataset.lane); });
-});
-// The note track is a big tap target too: tap anywhere in a lane, one thumb per lane.
+// The circles are the buttons: tap anywhere in a lane, one thumb per lane.
 cvs.addEventListener('pointerdown', e => {
   if (G.phase !== 'play' || !L.lw) return;
   e.preventDefault();
@@ -631,7 +608,7 @@ document.addEventListener('visibilitychange', () => {
 // ---------- drawing ----------
 function drawHighway(now) {
   const total = Math.min(L.w - 32, 360), lw = total / 3, x0 = (L.w - total) / 2;
-  const top = 8, hitY = L.h - 64;
+  const top = 8, hitY = L.h - 78;
   L.x0 = x0; L.lw = lw;
   ctx.fillStyle = COL.ink; ctx.fillRect(0, 0, L.w, L.h);
   LANES.forEach((ln, i) => {
@@ -644,13 +621,13 @@ function drawHighway(now) {
   // hit line and receptors
   ctx.strokeStyle = COL.gold; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x0, hitY); ctx.lineTo(x0 + total, hitY); ctx.stroke();
   LANES.forEach((ln, i) => {
-    const x = x0 + i * lw + lw / 2, rr = Math.min(lw * 0.32, 30) * (1 + G.flash[i] * 0.12);
+    const x = x0 + i * lw + lw / 2, rr = Math.min(lw * 0.38, 40) * (1 + G.flash[i] * 0.12);
     ctx.strokeStyle = ln.col; ctx.lineWidth = 2; ctx.fillStyle = COL.panel;
     ctx.beginPath(); ctx.arc(x, hitY, rr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.fillStyle = ln.col; ctx.font = `${Math.round(rr * 1.1)}px ${HAN}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(ln.han, x, hitY + 2);
     ctx.fillStyle = COL.muted; ctx.font = `12px ${BODY}`; ctx.textBaseline = 'alphabetic';
-    ctx.fillText(ln.name, x, hitY + rr + 18);
+    ctx.fillText(FINE_POINTER ? `${ln.name} · ${ln.key}` : ln.name, x, hitY + 40 + 20);
   });
   // notes
   if (G.phase === 'play') {
@@ -659,7 +636,7 @@ function drawHighway(now) {
       if (n.j && n.j !== 'miss') continue;
       const y = hitY - ((n.t - now) / st.travel) * dist;
       if (y < top - 30 || y > L.h + 30) continue;
-      const x = x0 + n.lane * lw + lw / 2, rr = Math.min(lw * 0.28, 26);
+      const x = x0 + n.lane * lw + lw / 2, rr = Math.min(lw * 0.32, 32);
       ctx.globalAlpha = n.j === 'miss' ? 0.25 : 1;
       drawNote(n.lane, x, y, rr);
       ctx.globalAlpha = 1;
@@ -707,7 +684,6 @@ function frame(ms) {
   if (cvs.clientWidth !== L.w || cvs.clientHeight !== L.h) resize();
   ctx.clearRect(0, 0, L.w, L.h);
   drawHighway(now);
-  document.querySelectorAll('.pad').forEach((b, i) => b.classList.toggle('on', G.flash[i] > 0.3));
   requestAnimationFrame(frame);
 }
 
