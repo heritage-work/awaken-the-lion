@@ -102,7 +102,7 @@ header p { margin: 4px 0 0; color: var(--muted); max-width: 60ch; }
 .btn:hover { filter: brightness(1.08); }
 .btn:disabled { opacity: .6; cursor: wait; }
 .btn.ghost { background: transparent; color: var(--text); border-color: var(--line); }
-.btn:focus-visible, .opt:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .err { color: var(--red); font-size: 14px; }
 .keys { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
 .keys span { border: 1px solid var(--line); border-radius: 3px; padding: 2px 8px; }
@@ -212,18 +212,15 @@ kbd { font: 700 12px var(--body); color: var(--text); }
 .ladder em { font-style: normal; font-variant-numeric: tabular-nums; opacity: .8; }
 
 
-/* ---- quiz ---- */
+/* ---- quiz call-to-action (the quiz itself runs in the dialog) ---- */
 .section-title { margin: 8px 0 0; font-family: var(--display); font-weight: 400; font-size: 26px; }
-.quiz { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px 28px; }
-.q { display: grid; gap: 8px; align-content: start; }
-.q p { margin: 0; font-weight: 600; }
-.opts { display: flex; flex-wrap: wrap; gap: 6px; }
-.opt { font: 14px var(--body); color: var(--text); background: transparent; border: 1px solid var(--line); border-radius: 3px; padding: 6px 10px; cursor: pointer; }
-.opt.right { border-color: var(--jade); background: color-mix(in srgb, var(--jade) 25%, transparent); }
-.opt.wrong { border-color: var(--red); background: color-mix(in srgb, var(--red) 20%, transparent); }
-.opt:disabled { cursor: default; }
-.why { font-size: 13px; color: var(--muted); }
-#qscore { margin: 0; }
+.quiz-cta {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px;
+  background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--gold); border-radius: 6px;
+  padding: 16px 20px;
+}
+.quiz-cta .section-title { margin: 0; font-size: 22px; }
+.quiz-cta p { margin: 2px 0 0; }
 
 .real { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px 28px; align-items: start; }
 .real figure { margin: 0; display: grid; gap: 6px; min-width: 0; }
@@ -271,10 +268,12 @@ kbd { font: 700 12px var(--body); color: var(--text); }
   </dialog>
 
 
-  <section id="quiz">
-    <h2 class="section-title">Test yourself</h2>
-    <div class="quiz" id="quizlist"></div>
-    <p class="muted" id="qscore">Answer all four to see your score.</p>
+  <section class="quiz-cta" id="quiz">
+    <div>
+      <h2 class="section-title">Test yourself</h2>
+      <p class="muted">Four quick questions on lion dance, with answers from Roots.sg.</p>
+    </div>
+    <button class="btn" id="open-quiz">Take the quiz</button>
   </section>
 
   <h2 class="section-title">Lion dance in Singapore</h2>
@@ -636,17 +635,19 @@ function openResult() {
     <div class="actions"><button class="btn" id="res-again">Perform again</button><button class="btn ghost" id="res-quiz">Test yourself</button></div>
   </div>`;
   $('#res-again').onclick = () => { dlg.close(); resetGame(); };
-  $('#res-quiz').onclick = openQuiz;
+  $('#res-quiz').onclick = () => openQuiz(true);
   if (!dlg.open) dlg.showModal();
   $('#res-again').focus();
 }
 
 // The quiz inside the rank dialog, one question at a time.
-function openQuiz() {
+// fromRank: opened from the rank screen after a game, so it can go back to the rank.
+function openQuiz(fromRank) {
   const body = $('#result-body');
   const got = [];
+  const back = () => { const b = $('#res-back'); if (b) b.onclick = openResult; };
   const bar = i => `<div class="qbar">
-      <button class="link" id="res-back">← Your rank</button>
+      ${fromRank ? '<button class="link" id="res-back">← Your rank</button>' : '<span class="eyebrow">Test yourself</span>'}
       <ol class="progress" aria-label="Question ${Math.min(i + 1, QUIZ.length)} of ${QUIZ.length}">${QUIZ.map((_, k) =>
         `<li class="${k < got.length ? (got[k] ? 'ok' : 'no') : k === i ? 'now' : ''}"></li>`).join('')}</ol>
     </div>`;
@@ -654,19 +655,23 @@ function openQuiz() {
     if (i === QUIZ.length) {
       const right = got.filter(Boolean).length;
       const [head, line] = right === QUIZ.length
-        ? ['Every answer right', 'You know your lion dance as well as you play it.']
+        ? ['Every answer right', fromRank ? 'You know your lion dance as well as you play it.' : 'Now see if you can keep time with the band.']
         : right >= QUIZ.length - 1
           ? ['Nearly there', 'Every answer comes from the Lion Dance entry on Roots.sg. The field guide below the game has the rest.']
           : ['Keep learning', 'Every answer comes from the Lion Dance entry on Roots.sg. Read the field guide below the game, then try again.'];
       body.innerHTML = `<div class="res">${bar(i)}
         <div class="score-big"><b>${right}</b><span>/ ${QUIZ.length}</span></div>
-        <div><div class="eyebrow">Test yourself</div><h2 id="rank-title">${head}</h2></div>
+        <div>${fromRank ? '<div class="eyebrow">Test yourself</div>' : ''}<h2 id="rank-title">${head}</h2></div>
         <p>${line}</p>
-        <div class="actions"><button class="btn" id="res-again">Perform again</button></div>
+        <div class="actions">${fromRank
+          ? '<button class="btn" id="res-again">Perform again</button>'
+          : '<button class="btn" id="res-play">Play the game</button>'}<button class="btn ghost" id="res-retry">Try again</button></div>
       </div>`;
-      $('#res-back').onclick = openResult;
-      $('#res-again').onclick = () => { dlg.close(); resetGame(); };
-      $('#res-again').focus();
+      back();
+      $('#res-retry').onclick = () => openQuiz(fromRank);
+      if (fromRank) $('#res-again').onclick = () => { dlg.close(); resetGame(); };
+      else $('#res-play').onclick = () => { dlg.close(); $('.stage').scrollIntoView({ behavior: REDUCE_MOTION ? 'auto' : 'smooth' }); };
+      body.querySelector('.actions .btn').focus();
       return;
     }
     const q = QUIZ[i];
@@ -678,7 +683,7 @@ function openQuiz() {
         <button class="btn wide" id="res-next">${i + 1 < QUIZ.length ? 'Next question' : 'See your score'}</button>
       </div>
     </div>`;
-    $('#res-back').onclick = openResult;
+    back();
     body.querySelectorAll('.choice').forEach(b => b.onclick = () => {
       const ok = +b.dataset.o === q.a;
       got.push(ok);
@@ -698,24 +703,12 @@ function openQuiz() {
     body.querySelector('.choice').focus();
   };
   show(0);
+  if (!dlg.open) dlg.showModal();
+  body.querySelector('.choice').focus();
 }
 
 // ---------- quiz ----------
-function renderQuiz() {
-  const list = $('#quizlist');
-  list.innerHTML = QUIZ.map((q, i) => `<div class="q" data-q="${i}"><p>${q.q}</p><div class="opts">${q.opts.map((o, j) => `<button class="opt" data-o="${j}">${o}</button>`).join('')}</div><div class="why" hidden>${q.why}</div></div>`).join('');
-  let answered = 0, right = 0;
-  list.querySelectorAll('.q').forEach(el => {
-    const q = QUIZ[+el.dataset.q];
-    el.querySelectorAll('.opt').forEach(b => b.onclick = () => {
-      const j = +b.dataset.o;
-      el.querySelectorAll('.opt').forEach(x => { x.disabled = true; if (+x.dataset.o === q.a) x.classList.add('right'); });
-      if (j !== q.a) b.classList.add('wrong'); else right++;
-      el.querySelector('.why').hidden = false;
-      if (++answered === QUIZ.length) $('#qscore').textContent = `You got ${right} of ${QUIZ.length} right.`;
-    });
-  });
-}
+$('#open-quiz').onclick = () => openQuiz(false);
 
 // ---------- input ----------
 addEventListener('keydown', e => {
@@ -822,7 +815,6 @@ function frame(ms) {
   requestAnimationFrame(frame);
 }
 
-renderQuiz();
 introBrief();
 requestAnimationFrame(frame);
 </script>
