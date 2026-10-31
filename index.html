@@ -115,10 +115,66 @@ kbd { font: 700 12px var(--body); color: var(--text); }
   .stage.playing .lion .tag { padding: 16px 10px 6px; }
   .stage.playing .lion .act { font-size: 12px; }
   .stage.playing .lion .src { display: none; }
+  .burst .num { font-size: 34px; }
   .brief .inner { gap: 12px; }
   .head .han { font-size: 48px; }
   .head h2 { font-size: 24px; }
 }
+
+/* ---- in-play overlays on the lion: pause, spirit meter, combo bursts ---- */
+.lion video { transition: filter .4s; }
+.pause {
+  position: absolute; top: 10px; left: 10px; z-index: 3; width: 40px; height: 40px; display: none; place-items: center;
+  color: var(--text); background: color-mix(in srgb, var(--ink) 60%, transparent); backdrop-filter: blur(4px);
+  border: 1px solid color-mix(in srgb, var(--text) 30%, transparent); border-radius: 50%; cursor: pointer;
+}
+.pause:hover { border-color: var(--gold); }
+.pause:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.spirit {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; height: 18px; display: none; align-items: center; gap: 8px;
+  padding-right: 10px; background: linear-gradient(to top, rgba(0, 0, 0, .65), transparent);
+}
+.stage.playing .pause { display: grid; }
+.stage.playing .spirit { display: flex; }
+.stage.playing .lion .tag { bottom: 18px; }
+.spirit-track { flex: 1; height: 5px; background: rgba(255, 255, 255, .15); border-radius: 0 3px 3px 0; overflow: hidden; }
+.spirit-fill { height: 100%; width: 70%; background: var(--gold); transition: width .15s linear, background-color .3s; }
+.spirit-han { font-family: var(--han); font-size: 16px; line-height: 1; color: var(--gold); transition: color .3s, text-shadow .3s; }
+.spirit.full .spirit-fill { box-shadow: 0 0 10px var(--gold); }
+.spirit.full .spirit-han { text-shadow: 0 0 10px var(--gold); }
+.spirit.low .spirit-fill { background: var(--red); }
+.spirit.low .spirit-han { color: var(--red); }
+.tiring {
+  position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); z-index: 2; pointer-events: none; white-space: nowrap;
+  font-family: var(--display); font-size: 22px; color: var(--text); text-shadow: 0 2px 14px #000; opacity: 0; transition: opacity .4s;
+}
+.tiring.show { opacity: 1; }
+.lion.bursting .tiring { opacity: 0; }
+.burst { position: absolute; left: 50%; top: 45%; z-index: 3; pointer-events: none; }
+.burst .ring { position: absolute; left: -40px; top: -40px; width: 80px; height: 80px; border: 3px solid var(--gold); border-radius: 50%; animation: ring .7s ease-out forwards; }
+.burst .num {
+  position: absolute; display: grid; justify-items: center; transform: translate(-50%, -50%); white-space: nowrap;
+  font-family: var(--display); font-size: 46px; line-height: 1; color: var(--gold); text-shadow: 0 2px 14px rgba(0, 0, 0, .85);
+  animation: pop 1s ease-out forwards;
+}
+.burst .num small { font-family: var(--body); font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text); }
+.burst i { position: absolute; width: 7px; height: 7px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--c); animation: spark .8s ease-out forwards; }
+@keyframes ring { from { transform: scale(.3); opacity: 1; } to { transform: scale(2.6); opacity: 0; } }
+@keyframes pop { 0% { transform: translate(-50%, -50%) scale(.6); opacity: 0; } 20% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; } 70% { opacity: 1; } 100% { transform: translate(-50%, -75%) scale(1); opacity: 0; } }
+@keyframes spark { from { transform: translate(0, 0); opacity: 1; } to { transform: translate(var(--dx), var(--dy)); opacity: 0; } }
+@keyframes fade { 0%, 100% { opacity: 0; } 20%, 80% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .burst .ring { display: none; }
+  .burst .num { animation: fade 1s forwards; }
+  .lion video, .spirit-fill { transition: none; }
+}
+.paused {
+  position: absolute; inset: 0; z-index: 4; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--ink) 75%, transparent); backdrop-filter: blur(3px);
+}
+.paused-card { display: grid; gap: 12px; justify-items: center; text-align: center; padding: 16px; }
+.paused-card b { font-family: var(--display); font-weight: 400; font-size: 32px; }
+.paused-card .count { font-family: var(--display); font-size: 64px; line-height: 1; color: var(--gold); }
 
 /* ---- end-of-game result dialog ---- */
 #result {
@@ -256,10 +312,16 @@ kbd { font: 700 12px var(--body); color: var(--text); }
       <video id="lionvid" muted playsinline preload="auto" poster="lion-media/nms-poster.jpg" src="lion-media/nms-performance.mp4" aria-label="Two yellow southern lions performing on stage at the National Museum of Singapore"></video>
       <img class="still" id="still" alt="" hidden>
       <div class="tag"><span class="act" id="actname">Lunar New Year lion dance</span><span class="src" id="src">Video: National Museum of Singapore</span></div>
+      <button class="pause" id="pause" aria-label="Pause">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="3" y="2" width="3.5" height="12" rx="1" fill="currentColor"/><rect x="9.5" y="2" width="3.5" height="12" rx="1" fill="currentColor"/></svg>
+      </button>
+      <div class="spirit" id="spirit" role="meter" aria-label="Lion spirit" aria-valuemin="0" aria-valuemax="100"><div class="spirit-track"><div class="spirit-fill" id="spirit-fill"></div></div><span class="spirit-han" aria-hidden="true">醒</span></div>
+      <div class="tiring" id="tiring">The lion is tiring</div>
     </div>
     <canvas id="game" aria-label="Note highway"></canvas>
     <div class="brief" id="brief" aria-live="polite"></div>
     <div class="hud" id="hud" hidden><span>Score <b id="score">0</b></span><span>Combo <b id="combo">0</b></span></div>
+    <div class="paused" id="paused" hidden></div>
   </section>
 
   <dialog id="result" aria-labelledby="rank-title">
@@ -438,7 +500,37 @@ function tick(t) {
 }
 
 // ---------- state ----------
-const G = { phase: 'intro', stage: 0, notes: [], t0: 0, endT: 0, seg: 0, track: null, vidTimer: 0, score: 0, combo: 0, best: 0, stats: null, results: [], flash: [0, 0, 0], pops: [] };
+// phase: intro → card ⇄ play → paused → resuming → play …
+const G = { phase: 'intro', stage: 0, notes: [], t0: 0, endT: 0, seg: 0, segEnd: 0, track: null, vidTimer: 0, countTimer: 0, pausedAt: 0, score: 0, scoreAtStart: 0, combo: 0, best: 0, spirit: 0, stats: null, results: [], flash: [0, 0, 0], pops: [] };
+const lionEl = $('.lion'), spiritEl = $('#spirit'), spiritFill = $('#spirit-fill'), tiringEl = $('#tiring'), pausedEl = $('#paused');
+
+// Lion spirit: fills with hits, drains with misses; when low the lion video dims and loses colour.
+const SPIRIT_START = 0.7;
+const COMBO_MARKS = [10, 25, 50, 75, 100, 150];
+function setSpirit(v) {
+  G.spirit = Math.max(0, Math.min(1, v));
+  spiritFill.style.width = (G.spirit * 100).toFixed(1) + '%';
+  spiritEl.setAttribute('aria-valuenow', Math.round(G.spirit * 100));
+  spiritEl.classList.toggle('full', G.spirit >= 0.95);
+  spiritEl.classList.toggle('low', G.spirit < 0.3);
+  const t = Math.min(1, G.spirit / 0.35);
+  vid.style.filter = t < 1 ? `brightness(${(0.45 + 0.55 * t).toFixed(2)}) saturate(${(0.15 + 0.85 * t).toFixed(2)})` : '';
+  tiringEl.classList.toggle('show', G.spirit < 0.25);
+}
+function comboBurst(n) {
+  const b = document.createElement('div');
+  const cols = [COL.gold, COL.red, COL.jade, COL.text];
+  b.className = 'burst';
+  b.innerHTML = `<span class="ring"></span><span class="num">${n}<small>in a row</small></span>` + (REDUCE_MOTION ? '' : Array.from({ length: 16 }, (_, i) => {
+    const a = (i / 16) * Math.PI * 2, d = 50 + Math.random() * 40;
+    return `<i style="--c: ${cols[i % 4]}; --dx: ${(Math.cos(a) * d).toFixed(0)}px; --dy: ${(Math.sin(a) * d).toFixed(0)}px"></i>`;
+  }).join(''));
+  lionEl.appendChild(b);
+  lionEl.classList.add('bursting');
+  clearTimeout(comboBurst.timer);
+  comboBurst.timer = setTimeout(() => lionEl.classList.remove('bursting'), 1100);
+  setTimeout(() => b.remove(), 1100);
+}
 let L = {};
 
 function resize() {
@@ -460,7 +552,8 @@ function startStage() {
   const st = STAGES[G.stage], [a, b] = SEGS[G.stage];
   const t0 = ac.currentTime + Math.max(st.travel, 3 * COUNT_IN) + 0.4;
   G.notes = CHARTS[G.stage].map(([t, lane]) => ({ t: t0 + t, lane }));
-  G.t0 = t0; G.seg = a; G.endT = t0 + (b - a) + 0.4;
+  G.t0 = t0; G.seg = a; G.segEnd = b; G.endT = t0 + (b - a) + 0.4;
+  G.scoreAtStart = G.score; pausedEl.hidden = true; setSpirit(SPIRIT_START);
   for (let k = 3; k >= 1; k--) tick(t0 - k * COUNT_IN);
   G.track = play('nms-performance', t0, TRACK_VOL, a, b - a);
   showVideo(`Act ${G.stage + 1}: ${st.name}`);
@@ -469,6 +562,47 @@ function startStage() {
   G.vidTimer = setTimeout(() => vid.play().catch(() => {}), (t0 + LAT - ac.currentTime) * 1000);
   G.stats = { perfect: 0, good: 0, miss: 0 }; G.combo = 0; G.phase = 'play'; hud();
 }
+
+// Pausing stops the music and freezes the notes. Resuming counts in 3-2-1 on the beat and restarts the
+// music from the same spot, rather than suspending the audio engine (which iOS won't always restart).
+function pauseGame() {
+  if (G.phase !== 'play' || clock() < G.t0) return;
+  G.phase = 'paused'; G.pausedAt = ac.currentTime;
+  if (G.track) { try { G.track.s.stop(); } catch (e) {} G.track = null; }
+  clearTimeout(G.vidTimer); vid.pause();
+  pausedEl.innerHTML = `<div class="paused-card"><b>Paused</b><div class="actions"><button class="btn" id="resume">Resume</button><button class="btn ghost" id="restart">Restart act</button></div></div>`;
+  pausedEl.hidden = false;
+  $('#resume').onclick = resumeGame;
+  $('#restart').onclick = restartAct;
+  $('#resume').focus({ preventScroll: true });
+}
+function resumeGame() {
+  if (G.phase !== 'paused') return;
+  unlockAudio();
+  const at = ac.currentTime + 3 * COUNT_IN + 0.1;
+  const shift = at - G.pausedAt, offset = G.seg + (G.pausedAt - G.t0);
+  G.notes.forEach(n => { n.t += shift; });
+  G.t0 += shift; G.endT += shift;
+  for (let k = 3; k >= 1; k--) tick(at - k * COUNT_IN);
+  G.track = play('nms-performance', at, TRACK_VOL, offset, G.segEnd - offset);
+  vid.currentTime = offset;
+  G.vidTimer = setTimeout(() => vid.play().catch(() => {}), (at + LAT - ac.currentTime) * 1000);
+  G.phase = 'resuming';
+  let n = 3;
+  const count = () => {
+    if (n === 0) { pausedEl.hidden = true; G.phase = 'play'; return; }
+    pausedEl.innerHTML = `<div class="paused-card"><span class="count">${n}</span></div>`;
+    n--; G.countTimer = setTimeout(count, COUNT_IN * 1000);
+  };
+  count();
+}
+function restartAct() {
+  clearTimeout(G.countTimer); clearTimeout(G.vidTimer);
+  if (G.track) { try { G.track.s.stop(); } catch (e) {} G.track = null; }
+  G.score = G.scoreAtStart;
+  startStage();
+}
+$('#pause').onclick = pauseGame;
 
 // Keep the muted video on the same clock as the soundtrack the notes come from.
 function syncVideo() {
@@ -482,7 +616,7 @@ function finishStage() {
   const s = G.stats, total = s.perfect + s.good + s.miss;
   s.acc = total ? (s.perfect + 0.5 * s.good) / total : 0;
   G.results.push(s);
-  vid.pause(); vid.playbackRate = 1;
+  vid.pause(); vid.playbackRate = 1; vid.style.filter = ''; tiringEl.classList.remove('show');
   $('.stage').classList.remove('playing');
   G.stage++; G.phase = 'card'; G.track = null;
   if (G.stage < STAGES.length) stageBrief(); else finalBrief();
@@ -506,11 +640,14 @@ function hit(l) {
   best.j = p ? 'perfect' : 'good'; G.stats[best.j]++;
   G.combo++; G.best = Math.max(G.best, G.combo);
   G.score += (p ? 100 : 50) * (1 + Math.min(G.combo, 50) / 50);
+  setSpirit(G.spirit + (p ? 0.05 : 0.025));
+  if (COMBO_MARKS.includes(G.combo)) comboBurst(G.combo);
   pop(l, p ? 'Perfect' : 'Good', p ? COL.gold : COL.text); hud();
 }
 
 function miss(n) {
   n.j = 'miss'; G.stats.miss++; G.combo = 0; pop(n.lane, 'Miss', COL.muted); hud();
+  setSpirit(G.spirit - 0.1);
   // the band falters: briefly dip the soundtrack
   if (G.track) { const g = G.track.g.gain, t = ac.currentTime; g.cancelScheduledValues(t); g.setTargetAtTime(TRACK_VOL * 0.45, t, 0.02); g.setTargetAtTime(TRACK_VOL, t + 0.2, 0.08); }
 }
@@ -713,6 +850,9 @@ $('#open-quiz').onclick = () => openQuiz(false);
 // ---------- input ----------
 addEventListener('keydown', e => {
   if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.code === 'Space' && (G.phase === 'play' || G.phase === 'paused') && !e.target.closest?.('button')) {
+    e.preventDefault(); G.phase === 'play' ? pauseGame() : resumeGame(); return;
+  }
   if (e.target.closest?.('video, audio')) return;
   const l = LANES.findIndex(x => x.codes.includes(e.code));
   if (l < 0) return;
@@ -727,10 +867,11 @@ cvs.addEventListener('pointerdown', e => {
   const x = e.clientX - cvs.getBoundingClientRect().left;
   hit(Math.max(0, Math.min(LANES.length - 1, Math.floor((x - L.x0) / L.lw))));
 });
+// Leaving the tab mid-act pauses the game; the player resumes with a count-in when they come back.
 document.addEventListener('visibilitychange', () => {
   if (!ac) return;
-  if (document.hidden) { ac.suspend(); vid.pause(); }
-  else { ac.resume(); if (G.phase === 'play' && clock() >= G.t0) vid.play().catch(() => {}); }
+  if (document.hidden) { if (G.phase === 'play') pauseGame(); }
+  else if (ac.state !== 'running') ac.resume();
 });
 
 // ---------- drawing ----------
@@ -758,7 +899,7 @@ function drawHighway(now) {
     ctx.fillText(FINE_POINTER ? `${ln.name} · ${ln.key}` : ln.name, x, hitY + 40 + 20);
   });
   // notes
-  if (G.phase === 'play') {
+  if (G.phase === 'play' || G.phase === 'paused' || G.phase === 'resuming') {
     const st = STAGES[G.stage], dist = hitY - top;
     for (const n of G.notes) {
       if (n.j && n.j !== 'miss') continue;
@@ -801,7 +942,7 @@ function drawNote(lane, x, y, r) {
 let last = performance.now();
 function frame(ms) {
   const dt = Math.min(0.05, (ms - last) / 1000); last = ms;
-  const now = ac ? clock() : ms / 1000;
+  const now = !ac ? ms / 1000 : G.phase === 'paused' ? G.pausedAt - LAT : clock();
   if (G.phase === 'play') {
     for (const n of G.notes) if (!n.j && now > n.t + GOOD) miss(n);
     syncVideo();
