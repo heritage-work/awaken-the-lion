@@ -122,11 +122,20 @@ kbd { font: 700 12px var(--body); color: var(--text); }
 
 /* ---- end-of-game result dialog ---- */
 #result {
+  box-sizing: border-box;
   width: min(560px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow-y: auto;
   background: var(--panel); color: var(--text); border: 1px solid var(--line); border-top: 3px solid var(--gold);
   border-radius: 6px; padding: 26px clamp(18px, 4vw, 30px) 24px;
 }
-#result::backdrop { background: color-mix(in srgb, var(--ink) 82%, transparent); backdrop-filter: blur(3px); }
+#result::backdrop { background: color-mix(in srgb, var(--ink) 92%, transparent); backdrop-filter: blur(4px); }
+/* Phones: the dialog is a bottom sheet under the thumbs. */
+@media (max-width: 520px) {
+  #result {
+    width: 100%; max-width: 100%; max-height: 92%; margin: auto 0 0;
+    border-width: 3px 0 0; border-radius: 14px 14px 0 0;
+    padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
+  }
+}
 #result .x { position: absolute; top: 10px; right: 10px; margin: 0; }
 #result .x button { font: 22px/1 var(--body); color: var(--muted); background: none; border: 0; padding: 6px 10px; cursor: pointer; border-radius: 3px; }
 #result .x button:hover { color: var(--text); }
@@ -145,6 +154,49 @@ kbd { font: 700 12px var(--body); color: var(--text); }
 .res h2 { margin: 2px 0 2px; font-family: var(--display); font-weight: 400; font-size: 32px; line-height: 1.1; }
 .res .pinyin { color: var(--gold); font-size: 14px; }
 .res p { margin: 0; max-width: 52ch; }
+/* quiz steps inside the dialog */
+.qbar { display: flex; align-items: center; gap: 14px; padding-right: 34px; }
+.link { flex: none; background: none; border: 0; padding: 4px 0; color: var(--muted); font: 600 13px var(--body); cursor: pointer; }
+.link:hover { color: var(--text); }
+.link:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.progress { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex: 1; }
+.progress li { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
+.progress li.now { background: var(--gold); }
+.progress li.ok { background: var(--jade); }
+.progress li.no { background: var(--red); }
+.res .q-title { font-size: 26px; line-height: 1.2; }
+.choices { display: grid; gap: 8px; }
+.choice {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 10px 14px;
+  font: 500 16px var(--body); color: var(--text); text-align: left; cursor: pointer;
+  background: color-mix(in srgb, var(--ink) 45%, var(--panel)); border: 1px solid var(--line); border-radius: 8px;
+  transition: border-color .12s, opacity .2s;
+}
+.choice:hover:not(:disabled) { border-color: var(--gold); }
+.choice:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.choice .letter {
+  flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%;
+  border: 1px solid var(--line); color: var(--muted); font-size: 13px; font-weight: 700;
+}
+.choice:disabled { cursor: default; opacity: .4; }
+.choice.right, .choice.wrong { opacity: 1; }
+.choice.right { border-color: var(--jade); background: color-mix(in srgb, var(--jade) 14%, var(--panel)); }
+.choice.right .letter { background: var(--jade); border-color: var(--jade); color: var(--ink); }
+.choice.wrong { border-color: var(--red); background: color-mix(in srgb, var(--red) 12%, var(--panel)); }
+.choice.wrong .letter { background: var(--red); border-color: var(--red); color: var(--ink); }
+/* feedback space is reserved up front so the sheet doesn't jump when it appears */
+.after { display: grid; gap: 14px; visibility: hidden; }
+.after.show { visibility: visible; }
+.feedback { border-left: 3px solid var(--jade); padding: 2px 0 2px 12px; display: grid; gap: 2px; min-height: 64px; }
+.feedback.no { border-color: var(--red); }
+.feedback b { font-size: 14px; color: var(--jade); }
+.feedback.no b { color: var(--red); }
+.feedback p { color: var(--muted); font-size: 14px; }
+.btn.wide { width: 100%; text-align: center; }
+.score-big { display: flex; align-items: baseline; gap: 8px; font-family: var(--display); line-height: 1; }
+.score-big b { font-weight: 400; font-size: 72px; color: var(--gold); }
+.score-big span { font-size: 28px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .choice { transition: none; } }
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; border-block: 1px solid var(--line); padding-block: 12px; }
 .stats div { display: grid; gap: 0; }
 .stats b { font-family: var(--display); font-weight: 400; font-size: 26px; font-variant-numeric: tabular-nums; line-height: 1.1; }
@@ -584,9 +636,68 @@ function openResult() {
     <div class="actions"><button class="btn" id="res-again">Perform again</button><button class="btn ghost" id="res-quiz">Test yourself</button></div>
   </div>`;
   $('#res-again').onclick = () => { dlg.close(); resetGame(); };
-  $('#res-quiz').onclick = () => { dlg.close(); $('#quiz').scrollIntoView({ behavior: REDUCE_MOTION ? 'auto' : 'smooth' }); };
+  $('#res-quiz').onclick = openQuiz;
   if (!dlg.open) dlg.showModal();
   $('#res-again').focus();
+}
+
+// The quiz inside the rank dialog, one question at a time.
+function openQuiz() {
+  const body = $('#result-body');
+  const got = [];
+  const bar = i => `<div class="qbar">
+      <button class="link" id="res-back">← Your rank</button>
+      <ol class="progress" aria-label="Question ${Math.min(i + 1, QUIZ.length)} of ${QUIZ.length}">${QUIZ.map((_, k) =>
+        `<li class="${k < got.length ? (got[k] ? 'ok' : 'no') : k === i ? 'now' : ''}"></li>`).join('')}</ol>
+    </div>`;
+  const show = i => {
+    if (i === QUIZ.length) {
+      const right = got.filter(Boolean).length;
+      const [head, line] = right === QUIZ.length
+        ? ['Every answer right', 'You know your lion dance as well as you play it.']
+        : right >= QUIZ.length - 1
+          ? ['Nearly there', 'Every answer comes from the Lion Dance entry on Roots.sg. The field guide below the game has the rest.']
+          : ['Keep learning', 'Every answer comes from the Lion Dance entry on Roots.sg. Read the field guide below the game, then try again.'];
+      body.innerHTML = `<div class="res">${bar(i)}
+        <div class="score-big"><b>${right}</b><span>/ ${QUIZ.length}</span></div>
+        <div><div class="eyebrow">Test yourself</div><h2 id="rank-title">${head}</h2></div>
+        <p>${line}</p>
+        <div class="actions"><button class="btn" id="res-again">Perform again</button></div>
+      </div>`;
+      $('#res-back').onclick = openResult;
+      $('#res-again').onclick = () => { dlg.close(); resetGame(); };
+      $('#res-again').focus();
+      return;
+    }
+    const q = QUIZ[i];
+    body.innerHTML = `<div class="res">${bar(i)}
+      <h2 id="rank-title" class="q-title">${q.q}</h2>
+      <div class="choices">${q.opts.map((o, j) => `<button class="choice" data-o="${j}"><span class="letter">${'ABCD'[j]}</span><span>${o}</span></button>`).join('')}</div>
+      <div class="after">
+        <div class="feedback"><b></b><p>${q.why}</p></div>
+        <button class="btn wide" id="res-next">${i + 1 < QUIZ.length ? 'Next question' : 'See your score'}</button>
+      </div>
+    </div>`;
+    $('#res-back').onclick = openResult;
+    body.querySelectorAll('.choice').forEach(b => b.onclick = () => {
+      const ok = +b.dataset.o === q.a;
+      got.push(ok);
+      body.querySelectorAll('.choice').forEach(x => {
+        x.disabled = true;
+        if (+x.dataset.o === q.a) { x.classList.add('right'); x.querySelector('.letter').textContent = '✓'; }
+      });
+      if (!ok) { b.classList.add('wrong'); b.querySelector('.letter').textContent = '✕'; }
+      const fb = body.querySelector('.feedback');
+      fb.classList.toggle('no', !ok);
+      fb.querySelector('b').textContent = ok ? 'Correct' : 'Not quite';
+      body.querySelector('.progress').outerHTML = bar(i + 1).match(/<ol[\s\S]*<\/ol>/)[0];
+      body.querySelector('.after').classList.add('show');
+      $('#res-next').onclick = () => show(i + 1);
+      $('#res-next').focus();
+    });
+    body.querySelector('.choice').focus();
+  };
+  show(0);
 }
 
 // ---------- quiz ----------
