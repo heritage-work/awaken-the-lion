@@ -330,11 +330,15 @@ let ac = null, bus = null, LAT = 0;
 const BUF = {};
 async function initAudio() {
   if (!ac) {
+    // iOS treats Web Audio as ambient sound, which the silent switch mutes; ask for media playback instead.
+    if (navigator.audioSession) navigator.audioSession.type = 'playback';
     ac = new (window.AudioContext || window.webkitAudioContext)();
     const comp = ac.createDynamicsCompressor();
     bus = ac.createGain(); bus.gain.value = 0.9;
     bus.connect(comp).connect(ac.destination);
   }
+  // Runs inside the Start tap: iOS only lets audio play once a sound has started during a tap.
+  unlockAudio();
   await ac.resume();
   LAT = ac.outputLatency || ac.baseLatency || 0;
   await Promise.all([loadVideo(), ...['nms-performance', 'hit-drum', 'hit-cymbal', 'hit-gong'].filter(n => !BUF[n]).map(async n => {
@@ -343,6 +347,13 @@ async function initAudio() {
     BUF[n] = await ac.decodeAudioData(await r.arrayBuffer());
   })]);
 }
+function unlockAudio() {
+  const s = ac.createBufferSource();
+  s.buffer = ac.createBuffer(1, 1, ac.sampleRate);
+  s.connect(ac.destination); s.start(0);
+  if (ac.state !== 'running') ac.resume();
+}
+
 // Play the clip from memory so each act can jump to its section on any host,
 // including servers that don't support partial (range) requests.
 async function loadVideo() {
@@ -383,6 +394,7 @@ function hud() { $('#score').textContent = Math.round(G.score); $('#combo').text
 const clock = () => ac.currentTime - LAT;
 
 function startStage() {
+  unlockAudio(); // the Play tap: iOS may have suspended audio since the last act
   hideBrief();
   if (matchMedia('(max-width: 639px)').matches) $('.stage').scrollIntoView({ block: 'start', behavior: REDUCE_MOTION ? 'auto' : 'smooth' });
   const st = STAGES[G.stage], [a, b] = SEGS[G.stage];
@@ -595,6 +607,7 @@ addEventListener('keydown', e => {
 // The circles are the buttons: tap anywhere in a lane, one thumb per lane.
 cvs.addEventListener('pointerdown', e => {
   if (G.phase !== 'play' || !L.lw) return;
+  if (ac.state !== 'running') ac.resume();
   e.preventDefault();
   const x = e.clientX - cvs.getBoundingClientRect().left;
   hit(Math.max(0, Math.min(LANES.length - 1, Math.floor((x - L.x0) / L.lw))));
